@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INBL-Inspired AI: Compressing Time into Latent Space</title>
+    <!-- Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for plotting -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts for a cleaner typeface -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tone.js for sound generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* Deep navy blue background */
+        }
+        .canvas-container {
+            background-color: #1f2937; /* A slightly lighter gray for the canvas */
+            border-radius: 0.5rem;
+            border: 1px solid #374151;
+            display: flex;
+            flex-direction: column;
+        }
+        .canvas-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+        @media (min-width: 1024px) {
+            .canvas-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+         @media (min-width: 1536px) {
+            .canvas-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+        /* Custom styling for the range slider thumb */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #38bdf8;
+            cursor: pointer;
+            border-radius: 9999px;
+            margin-top: -6px; 
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #38bdf8;
+            cursor: pointer;
+            border-radius: 9999px;
+        }
+        /* Chart.js specific styles */
+        .chart-container {
+            position: relative;
+            height: 40vh;
+            width: 100%;
+        }
+        /* Tab styling */
+        .tab-btn {
+            transition: all 0.3s ease;
+        }
+        .tab-btn.active {
+            background-color: #38bdf8;
+            color: #ffffff;
+            font-weight: 600;
+        }
+        .tab-btn:not(.active) {
+             background-color: #374151;
+             color: #d1d5db;
+        }
+        .gemini-btn {
+            background-color: #6366f1; /* Indigo */
+            color: white;
+        }
+        .gemini-btn:hover {
+            background-color: #4f46e5;
+        }
+         .gemini-btn:disabled {
+            background-color: #4b5563;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 p-4 md:p-8">
+
+    <div class="max-w-screen-2xl mx-auto">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl sm:text-4xl font-bold text-sky-400 mb-2">INBL-Inspired AI: Compressing Time into Latent Space</h1>
+            <p class="text-gray-400 max-w-5xl mx-auto">
+                This simulation explores "time into space" conversion by having an AI learn a compressed, 'orthogonal' latent space from chaotic dynamics. The AI observes a double pendulum's evolution in <strong class="text-white">time</strong> and attempts to discover simplified physical laws within its learned <strong class="text-white">space</strong>. Ask Gemini to analyze the results.
+            </p>
+        </header>
+
+        <!-- Tab Navigation -->
+        <nav class="flex justify-center mb-6 bg-gray-800 rounded-lg p-1">
+            <button id="simTab" class="tab-btn active w-1/2 py-2 px-4 rounded-md">Simulation</button>
+            <button id="analysisTab" class="tab-btn w-1/2 py-2 px-4 rounded-md">Analysis</button>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main>
+            <!-- Simulation View -->
+            <div id="simulation-view">
+                 <div class="w-full flex flex-col gap-6">
+                    <!-- Controls -->
+                    <div class="bg-gray-800 border border-gray-700 rounded-xl shadow-lg p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
+                        <!-- Column 1: Training Control -->
+                        <div class="flex flex-col gap-4">
+                            <h3 class="font-semibold text-white text-center">1. Training Control</h3>
+                            <button id="trainBtn" class="w-full px-5 py-2.5 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 focus:ring-offset-gray-900 transition-colors">
+                                Start Training
+                            </button>
+                            <div>
+                                <label for="speedSlider" class="flex justify-between text-sm font-medium text-gray-300">
+                                    <span>Training Speed</span>
+                                    <span id="speedValue" class="font-semibold text-sky-400">1x</span>
+                                </label>
+                                <input type="range" id="speedSlider" min="1" max="500" value="1" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer mt-2">
+                            </div>
+                        </div>
+                        <!-- Column 2: Progress -->
+                        <div class="text-center">
+                            <h3 class="font-semibold text-white">Progress</h3>
+                            <div id="training-info" class="font-mono text-sky-400 mt-2 h-16">Waiting to start...</div>
+                        </div>
+                        <!-- Column 3: Gemini Settings -->
+                        <div class="flex flex-col gap-2">
+                            <h3 class="font-semibold text-white text-center">2. Gemini Settings</h3>
+                            <label for="apiKeyInput" class="block text-sm font-medium text-gray-300">API Key (Optional)</label>
+                            <input type="password" id="apiKeyInput" class="w-full bg-gray-900 text-gray-300 p-2 rounded-lg border border-gray-600 text-sm" placeholder="Leave empty for default">
+                            <p class="text-xs text-gray-500">Use your own key if the default method fails with an error.</p>
+                        </div>
+                        <!-- Column 4: Analysis -->
+                        <div class="flex flex-col gap-2">
+                             <h3 class="font-semibold text-white text-center">3. Analysis</h3>
+                            <button id="saveBtn" class="w-full px-5 py-2.5 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-green-600 hover:bg-green-700">
+                                Save Data
+                            </button>
+                            <button id="analyzeBtn" class="gemini-btn w-full px-5 py-2.5 rounded-md shadow-sm text-base font-medium">
+                                ✨ Analyze
+                            </button>
+                            <button id="explainBtn" class="gemini-btn w-full px-5 py-2.5 rounded-md shadow-sm text-base font-medium hidden">
+                                ✨ Explain
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Visualization Grid -->
+                    <div class="canvas-grid">
+                        <div class="canvas-container p-4">
+                            <h2 class="text-lg font-semibold text-white text-center mb-2">Real Physics & Phase Space</h2>
+                            <canvas id="real-canvas" class="w-full h-auto aspect-square bg-gray-900 rounded-md mb-2"></canvas>
+                            <canvas id="real-phase-canvas" class="w-full h-auto aspect-square bg-gray-900 rounded-md"></canvas>
+                        </div>
+                        <div class="canvas-container p-4 flex-grow">
+                             <h2 class="text-lg font-semibold text-white text-center mb-2">The Neural Network</h2>
+                             <canvas id="nn-canvas" class="w-full h-full bg-gray-900 rounded-md"></canvas>
+                        </div>
+                        <div class="canvas-container p-4">
+                            <h2 class="text-lg font-semibold text-white text-center mb-2">AI's Discovered Latent Space</h2>
+                            <canvas id="latent-phase-canvas-1" class="w-full h-auto aspect-square bg-gray-900 rounded-md mb-2"></canvas>
+                            <canvas id="latent-phase-canvas-2" class="w-full h-auto aspect-square bg-gray-900 rounded-md"></canvas>
+                        </div>
+                        <div class="canvas-container p-4">
+                            <h2 class="text-lg font-semibold text-white text-center mb-2">AI Analysis & Reconstruction</h2>
+                             <canvas id="recon-canvas" class="w-full h-auto aspect-square bg-gray-900 rounded-md mb-2"></canvas>
+                             <canvas id="correlation-canvas" class="w-full h-auto aspect-square bg-gray-900 rounded-md"></canvas>
+                             <div id="latent-data-display" class="text-center text-gray-400 mt-2 text-xs font-mono p-2 bg-gray-900 rounded"></div>
+                             <div id="gemini-analysis-display" class="text-left text-gray-300 mt-2 text-sm p-3 bg-gray-900 rounded h-24 overflow-y-auto">Gemini analysis will appear here...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis View -->
+            <div id="analysis-view" class="hidden">
+                 <div class="mb-8 bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <label for="dataInput" class="block text-lg font-semibold mb-2 text-gray-200">Data Source (Auto-filled from simulation)</label>
+                    <textarea id="dataInput" class="w-full h-48 bg-gray-900 text-gray-300 p-3 rounded-lg border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow duration-300"></textarea>
+                    <button id="plotButton" class="mt-4 w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors duration-300 shadow-md">
+                        Plot Data
+                    </button>
+                    <p class="text-sm text-gray-400 mt-2">Click to plot the data above. If you switch to this tab from the simulation, data will be pre-loaded. You can also paste your own CSV data.</p>
+                </div>
+                
+                <!-- Charts Section -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                        <h2 class="text-2xl font-semibold mb-4 text-center text-white">Angle vs. Time</h2>
+                        <div class="chart-container">
+                            <canvas id="timeSeriesChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                        <h2 class="text-2xl font-semibold mb-4 text-center text-white">Phase Portrait (Velocity vs. Angle)</h2>
+                        <div class="chart-container">
+                            <canvas id="phasePortraitChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Modal for CSV Data -->
+    <div id="csvModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl flex flex-col" style="max-height: 90vh;">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg font-medium text-white">Exported Physics Data (CSV)</h3>
+                <button id="closeModalBtn" class="text-gray-400 hover:text-white">&times;</button>
+            </div>
+            <div class="p-4 flex-grow overflow-y-auto">
+                <textarea id="csvTextArea" class="w-full h-full bg-gray-900 text-gray-300 font-mono text-xs p-2 rounded border border-gray-600"></textarea>
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-end gap-2">
+                 <button id="copyCsvBtn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Copy to Clipboard</button>
+            </div>
+        </div>
+    </div>
+
+
+<script>
+// --- UTILITY FUNCTIONS ---
+const utils = {
+    randn_bm: () => {
+        let u = 0, v = 0;
+        while(u === 0) u = Math.random();
+        while(v === 0) v = Math.random();
+        return Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+    },
+    leakyRelu: (x) => Math.max(0.01 * x, x),
+    leakyRelu_derivative: (x) => x > 0 ? 1 : 0.01,
+    tanh_derivative: (x) => 1 - Math.pow(Math.tanh(x), 2)
+};
+
+// --- AUTOENCODER NEURAL NETWORK CLASS ---
+class Autoencoder {
+    constructor(inputSize, hiddenSize, latentSize, learningRate = 0.001) {
+        this.inputSize = inputSize; this.hiddenSize = hiddenSize; this.latentSize = latentSize; this.lr = learningRate;
+        const init_weights = (rows, cols) => Array(rows).fill(0).map(() => Array(cols).fill(0).map(() => utils.randn_bm() * Math.sqrt(1 / cols)));
+        this.w_ih = init_weights(hiddenSize, inputSize); this.b_h = Array(hiddenSize).fill(0);
+        this.w_hl = init_weights(latentSize, hiddenSize); this.b_l = Array(latentSize).fill(0);
+        this.w_ld = init_weights(hiddenSize, latentSize); this.b_d = Array(hiddenSize).fill(0);
+        this.w_do = init_weights(inputSize, hiddenSize); this.b_o = Array(inputSize).fill(0);
+    }
+    forward(input) {
+        const matMul = (W, x, b) => W.map((weights, i) => x.reduce((acc, val, j) => acc + val * weights[j], 0) + b[i]);
+        const hidden_pre = matMul(this.w_ih, input, this.b_h); const hidden = hidden_pre.map(utils.leakyRelu);
+        const latent_pre = matMul(this.w_hl, hidden, this.b_l); const latent = latent_pre.map(Math.tanh);
+        const decoded_hidden_pre = matMul(this.w_ld, latent, this.b_d); const decoded_hidden = decoded_hidden_pre.map(utils.leakyRelu);
+        const output = matMul(this.w_do, decoded_hidden, this.b_o);
+        return { input, hidden_pre, hidden, latent_pre, latent, decoded_hidden_pre, decoded_hidden, output };
+    }
+    train(input) {
+        const ff = this.forward(input);
+        const { hidden_pre, hidden, latent_pre, latent, decoded_hidden_pre, decoded_hidden, output } = ff;
+        const output_error = output.map((o, i) => o - input[i]);
+        const loss = 0.5 * output_error.reduce((sum, err) => sum + err * err, 0);
+        const d_output = output_error;
+        const backprop = (d_next, w_next, pre_this) => w_next[0].map((_, j) => d_next.reduce((acc, err, i) => acc + err * w_next[i][j], 0)).map((err, i) => err * utils.leakyRelu_derivative(pre_this[i]));
+        const grad = (d_layer, activation_prev) => d_layer.map(err => activation_prev.map(a => err * a));
+        const update = (W, dW, b, db) => { W.forEach((row, i) => { row.forEach((_, j) => W[i][j] -= this.lr * dW[i][j]); b[i] -= this.lr * db[i]; }); };
+        const d_w_do = grad(d_output, decoded_hidden); const d_decoded_hidden = backprop(d_output, this.w_do, decoded_hidden_pre);
+        const d_w_ld = grad(d_decoded_hidden, latent);
+        const d_latent = this.w_ld[0].map((_, j) => d_decoded_hidden.reduce((acc, err, i) => acc + err * this.w_ld[i][j], 0)).map((err, i) => err * utils.tanh_derivative(latent_pre[i]));
+        const d_w_hl = grad(d_latent, hidden); const d_hidden = backprop(d_latent, this.w_hl, hidden_pre);
+        const d_w_ih = grad(d_hidden, input);
+        update(this.w_do, d_w_do, this.b_o, d_output); update(this.w_ld, d_w_ld, this.b_d, d_decoded_hidden);
+        update(this.w_hl, d_w_hl, this.b_l, d_latent); update(this.w_ih, d_w_ih, this.b_h, d_hidden);
+        ff.loss = loss; return ff;
+    }
+}
+
+
+// --- PHYSICS SIMULATION: Double Pendulum ---
+class DoublePendulum {
+    constructor(w, h) {
+        this.w = w; this.h = h; this.r1 = w / 4; this.r2 = w / 4;
+        this.m1 = 10; this.m2 = 10;
+        this.a1 = Math.PI / 2; this.a2 = Math.PI / 1.5;
+        this.a1_v = 0; this.a2_v = 0;
+        this.g = 0.5; this.origin = { x: w / 2, y: h / 2.5 };
+        this.wasNudged = false;
+    }
+    getState() {
+        return [this.a1 / Math.PI, this.a2 / Math.PI, this.a1_v, this.a2_v, this.wasNudged ? 1 : 0];
+    }
+    setState(state) {
+        [this.a1, this.a2, this.a1_v, this.a2_v] = [state[0] * Math.PI, state[1] * Math.PI, state[2], state[3]];
+    }
+    getEnergy() {
+        const K1 = 0.5 * this.m1 * Math.pow(this.r1 * this.a1_v, 2);
+        const K2 = 0.5 * this.m2 * (Math.pow(this.r1 * this.a1_v, 2) + Math.pow(this.r2 * this.a2_v, 2) + 2 * this.r1 * this.r2 * this.a1_v * this.a2_v * Math.cos(this.a1-this.a2));
+        const U1 = -this.m1 * this.g * this.r1 * Math.cos(this.a1);
+        const U2 = -this.m2 * this.g * (this.r1 * Math.cos(this.a1) + this.r2 * Math.cos(this.a2));
+        return K1 + K2 + U1 + U2;
+    }
+    update() {
+        this.wasNudged = false; 
+        if(this.getEnergy() < -1100) {
+            this.a2_v += (Math.random() - 0.5) * 0.2; 
+            this.wasNudged = true;
+        }
+        let num1 = -this.g * (2 * this.m1 + this.m2) * Math.sin(this.a1);
+        let num2 = -this.m2 * this.g * Math.sin(this.a1 - 2 * this.a2);
+        let num3 = -2 * Math.sin(this.a1 - this.a2) * this.m2;
+        let num4 = this.a2_v * this.a2_v * this.r2 + this.a1_v * this.a1_v * this.r1 * Math.cos(this.a1 - this.a2);
+        let den = this.r1 * (2 * this.m1 + this.m2 - this.m2 * Math.cos(2 * this.a1 - 2 * this.a2));
+        let a1_a = (num1 + num2 + num3 * num4) / den;
+        num1 = 2 * Math.sin(this.a1 - this.a2);
+        num2 = (this.a1_v * this.a1_v * this.r1 * (this.m1 + this.m2));
+        num3 = this.g * (this.m1 + this.m2) * Math.cos(this.a1);
+        num4 = this.a2_v * this.a2_v * this.r2 * this.m2 * Math.cos(this.a1 - this.a2);
+        den = this.r2 * (2 * this.m1 + this.m2 - this.m2 * Math.cos(2 * this.a1 - 2 * this.a2));
+        let a2_a = (num1 * (num2 + num3 + num4)) / den;
+        this.a1_v += a1_a * 0.1; this.a2_v += a2_a * 0.1;
+        this.a1 += this.a1_v; this.a2 += this.a2_v;
+        this.a1_v *= 0.999; this.a2_v *= 0.999; 
+    }
+    draw(ctx, state) {
+        const [a1, a2, _, __] = state.map((v,i) => i < 2 ? v * Math.PI : v);
+        const x1 = this.origin.x + this.r1 * Math.sin(a1); const y1 = this.origin.y + this.r1 * Math.cos(a1);
+        const x2 = x1 + this.r2 * Math.sin(a2); const y2 = y1 + this.r2 * Math.cos(a2);
+        ctx.clearRect(0, 0, this.w, this.h);
+        ctx.beginPath(); ctx.moveTo(this.origin.x, this.origin.y); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2);
+        ctx.strokeStyle = '#9ca3af'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.beginPath(); ctx.arc(x1, y1, this.m1, 0, 2 * Math.PI); ctx.fillStyle = '#60a5fa'; ctx.fill();
+        ctx.beginPath(); ctx.arc(x2, y2, this.m2, 0, 2 * Math.PI); ctx.fillStyle = '#38bdf8'; ctx.fill();
+    }
+}
+
+// --- GLOBAL SCOPE VARIABLES ---
+let fullDataHistory = [];
+let timeSeriesChart, phasePortraitChart;
+let lastCorrelationMatrix = null;
+
+
+// --- MAIN SCRIPT ---
+function main() {
+    // --- SIMULATION-SPECIFIC SETUP ---
+    const simCanvases = {
+        real: document.getElementById('real-canvas'),
+        recon: document.getElementById('recon-canvas'),
+        nn: document.getElementById('nn-canvas'),
+        realPhase: document.getElementById('real-phase-canvas'),
+        latentPhase1: document.getElementById('latent-phase-canvas-1'),
+        latentPhase2: document.getElementById('latent-phase-canvas-2'),
+        correlation: document.getElementById('correlation-canvas'),
+    };
+    const simCtxs = Object.fromEntries(Object.entries(simCanvases).map(([k, v]) => [k, v.getContext('2d')]));
+    Object.values(simCanvases).forEach(c => { c.width = 300; c.height = 300; });
+    simCanvases.nn.height = 624; 
+
+    const trainBtn = document.getElementById('trainBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const explainBtn = document.getElementById('explainBtn');
+    const speedSlider = document.getElementById('speedSlider');
+    const trainingInfo = document.getElementById('training-info');
+    const speedValue = document.getElementById('speedValue');
+    const latentDataDisplay = document.getElementById('latent-data-display');
+    const geminiAnalysisDisplay = document.getElementById('gemini-analysis-display');
+    const csvModal = document.getElementById('csvModal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const copyCsvBtn = document.getElementById('copyCsvBtn');
+    const csvTextArea = document.getElementById('csvTextArea');
+    const apiKeyInput = document.getElementById('apiKeyInput');
+
+    let physicsSim, autoencoder, isTraining = false, epoch = 0, totalLoss = 0, steps = 0;
+    let latentHistory = [], realHistory = [];
+    let trainingSpeed = 1;
+    let synth;
+
+    function setupSimulation() {
+        physicsSim = new DoublePendulum(simCanvases.real.width, simCanvases.real.height);
+        const inputSize = physicsSim.getState().length; 
+        autoencoder = new Autoencoder(inputSize, 16, 4); 
+        isTraining = false; epoch = 0; totalLoss = 0; steps = 0;
+        latentHistory = []; realHistory = []; fullDataHistory = []; lastCorrelationMatrix = null;
+        trainBtn.textContent = "Start Training"; trainBtn.disabled = false;
+        analyzeBtn.disabled = false;
+        explainBtn.classList.add('hidden');
+        trainingInfo.innerHTML = "Waiting to start...";
+        Object.values(simCtxs).forEach(ctx => ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height));
+        
+        if (typeof Tone !== 'undefined' && !synth) {
+            synth = new Tone.Synth().toDestination();
+        }
+    }
+    
+    function drawPhaseSpace(ctx, history, indices, title) {
+        const w = ctx.canvas.width, h = ctx.canvas.height;
+        ctx.fillStyle = "rgba(31, 41, 55, 0.1)"; ctx.fillRect(0,0,w,h); 
+        const [ix, iy] = indices;
+        ctx.beginPath();
+        for (let i = 1; i < history.length; i++) {
+            const p1 = history[i-1], p2 = history[i];
+            const x1 = w / 2 + p1[ix] * (w/2.5); const y1 = h / 2 - p1[iy] * (h/2.5);
+            const x2 = w / 2 + p2[ix] * (w/2.5); const y2 = h / 2 - p2[iy] * (h/2.5);
+            ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+        }
+        ctx.strokeStyle = '#facc15'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = '#9ca3af'; ctx.font = '12px Inter'; ctx.textAlign = 'center';
+        ctx.fillText(title, w/2, h-10);
+    }
+    
+    function drawNN(ff_results) {
+        const ctx = simCtxs.nn;
+        const w = simCanvases.nn.width, h = simCanvases.nn.height;
+        ctx.clearRect(0, 0, w, h);
+        if (!ff_results) return;
+        const inputLabels = ["Angle 1", "Angle 2", "Vel 1", "Vel 2", "Nudge"];
+        const layers = [
+            { n: autoencoder.inputSize, act: ff_results.input, label: "Input", labels: inputLabels },
+            { n: autoencoder.hiddenSize, act: ff_results.hidden, label: "Hidden 1"},
+            { n: autoencoder.latentSize, act: ff_results.latent, label: "Latent" },
+            { n: autoencoder.hiddenSize, act: ff_results.decoded_hidden, label: "Hidden 2"},
+            { n: autoencoder.inputSize, act: ff_results.output, label: "Output" }
+        ];
+        const layerX = [w * 0.1, w * 0.3, w * 0.5, w * 0.7, w * 0.9];
+        const getNodeY = (index, total) => h * 0.05 + h * 0.9 * (index + 0.5) / total;
+        for (let l = 0; l < layers.length - 1; l++) {
+            for (let i = 0; i < layers[l].n; i++) {
+                for (let j = 0; j < layers[l+1].n; j++) {
+                    ctx.beginPath();
+                    ctx.moveTo(layerX[l], getNodeY(i, layers[l].n));
+                    ctx.lineTo(layerX[l+1], getNodeY(j, layers[l+1].n));
+                    ctx.strokeStyle = `rgba(156, 163, 175, 0.1)`; ctx.lineWidth = 1; ctx.stroke();
+                }
+            }
+        }
+        layers.forEach((layer, l_idx) => {
+            ctx.fillStyle = '#d1d5db'; ctx.font = '12px Inter'; ctx.textAlign = 'center';
+            ctx.fillText(layer.label, layerX[l_idx], h * 0.98);
+            for (let i = 0; i < layer.n; i++) {
+                const y = getNodeY(i, layer.n);
+                const val = layer.act[i];
+                const isNudge = (l_idx === 0 && i === 4);
+                const colorVal = Math.max(0, Math.min(100, 50 + 50 * Math.abs(val)));
+                ctx.beginPath();
+                ctx.arc(layerX[l_idx], y, 5, 0, 2 * Math.PI);
+                ctx.fillStyle = (isNudge && val > 0.5) ? '#facc15' : (val > 0 ? `hsl(200, 100%, ${colorVal}%)` : `hsl(0, 80%, ${colorVal}%)`);
+                ctx.fill();
+                if (layer.labels && layer.labels[i]) {
+                    ctx.textAlign = 'right';
+                    ctx.fillText(layer.labels[i], layerX[l_idx] - 15, y);
+                }
+            }
+        });
+    }
+
+    function calculateAndDrawCorrelation() {
+        if (fullDataHistory.length < 200) return;
+        const latentData = fullDataHistory.map(d => d.latent);
+        const numVars = latentData[0].length;
+        const correlationMatrix = Array(numVars).fill(0).map(() => Array(numVars).fill(0));
+        const getColumn = (data, colIndex) => data.map(row => row[colIndex]);
+        const mean = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+        const stdDev = (arr, m) => Math.sqrt(arr.map(x => Math.pow(x - m, 2)).reduce((a, b) => a + b, 0) / arr.length);
+        const covariance = (arr1, arr2, m1, m2) => arr1.map((_, i) => (arr1[i] - m1) * (arr2[i] - m2)).reduce((a, b) => a + b, 0) / arr1.length;
+
+        for (let i = 0; i < numVars; i++) {
+            for (let j = i; j < numVars; j++) {
+                const col_i = getColumn(latentData, i);
+                const col_j = getColumn(latentData, j);
+                const mean_i = mean(col_i);
+                const mean_j = mean(col_j);
+                const std_i = stdDev(col_i, mean_i);
+                const std_j = stdDev(col_j, mean_j);
+                if (std_i === 0 || std_j === 0) {
+                     correlationMatrix[i][j] = (i === j) ? 1 : 0;
+                } else {
+                    const cov = covariance(col_i, col_j, mean_i, mean_j);
+                    const corr = cov / (std_i * std_j);
+                    correlationMatrix[i][j] = corr;
+                }
+                correlationMatrix[j][i] = correlationMatrix[i][j];
+            }
+        }
+        lastCorrelationMatrix = correlationMatrix;
+
+        const ctx = simCtxs.correlation;
+        const w = ctx.canvas.width, h = ctx.canvas.height;
+        ctx.clearRect(0,0,w,h);
+        const cellSize = w / (numVars + 2); // Room for labels
+        ctx.font = `${cellSize * 0.4}px Inter`;
+        ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'center';
+        ctx.fillText("Latent Correlation (Orthogonality)", w/2, cellSize * 0.6);
+
+        const getColor = (value) => { // value from -1 to 1. Blue (-1) -> White (0) -> Red (1)
+            const v_abs = Math.abs(value);
+            const r = value > 0 ? 255 : Math.round(255 * (1 - v_abs));
+            const g = Math.round(255 * (1 - v_abs));
+            const b = value < 0 ? 255 : Math.round(255 * (1 - v_abs));
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+        
+        for (let i = 0; i < numVars; i++) {
+            for (let j = 0; j < numVars; j++) {
+                const x = (j + 1) * cellSize;
+                const y = (i + 1) * cellSize;
+                ctx.fillStyle = getColor(correlationMatrix[i][j]);
+                ctx.fillRect(x, y, cellSize, cellSize);
+                ctx.fillStyle = Math.abs(correlationMatrix[i][j]) > 0.7 ? 'black' : 'white';
+                ctx.fillText(correlationMatrix[i][j].toFixed(2), x + cellSize/2, y + cellSize/2 + 5);
+            }
+        }
+    }
+    
+    function updateLatentDataDisplay(latentVars) {
+        if (!latentVars) return;
+        const html = `
+            Latent 1: <span class="text-white">${latentVars[0].toFixed(3)}</span> | 
+            Latent 2: <span class="text-white">${latentVars[1].toFixed(3)}</span><br>
+            Latent 3: <span class="text-white">${latentVars[2].toFixed(3)}</span> | 
+            Latent 4: <span class="text-white">${latentVars[3].toFixed(3)}</span>
+        `;
+        latentDataDisplay.innerHTML = html;
+    }
+
+    function gameLoop() {
+        let ff_results;
+        for (let i = 0; i < trainingSpeed; i++) {
+            physicsSim.update();
+            const currentState = physicsSim.getState();
+            if (isTraining && epoch < 100000) {
+                ff_results = autoencoder.train(currentState);
+                totalLoss += ff_results.loss;
+                steps++; epoch++;
+            } else {
+                ff_results = autoencoder.forward(currentState);
+            }
+            if(i === 0) { 
+                 latentHistory.push(ff_results.latent);
+                 realHistory.push(currentState);
+                 fullDataHistory.push({real: currentState, latent: ff_results.latent});
+                 if(latentHistory.length > 300) { latentHistory.shift(); realHistory.shift(); }
+                 if(fullDataHistory.length > 5000) { fullDataHistory.shift(); }
+            }
+        }
+        if (isTraining) {
+            if (epoch >= 100000) {
+                isTraining = false; trainBtn.textContent = "Training Complete"; trainBtn.disabled = true; analyzeBtn.disabled = false;
+            } else if (steps > 0) {
+                 trainingInfo.innerHTML = `Epoch: ${epoch}<br>Avg Loss: ${(totalLoss/steps).toExponential(2)}`;
+            }
+            if(epoch % 5000 === 0 && epoch > 0) {
+                calculateAndDrawCorrelation();
+            }
+        }
+        
+        const lastRealState = realHistory[realHistory.length-1];
+        if (lastRealState) { physicsSim.draw(simCtxs.real, lastRealState); }
+        if(ff_results){
+            physicsSim.draw(simCtxs.recon, ff_results.output);
+            drawNN(ff_results);
+            updateLatentDataDisplay(ff_results.latent);
+        }
+        drawPhaseSpace(simCtxs.realPhase, realHistory, [0, 2], 'Real: Angle 1 vs Vel 1');
+        drawPhaseSpace(simCtxs.latentPhase1, latentHistory, [0, 1], 'AI: Var 1 vs Var 2');
+        drawPhaseSpace(simCtxs.latentPhase2, latentHistory, [2, 3], 'AI: Var 3 vs Var 4');
+        requestAnimationFrame(gameLoop);
+    }
+    
+    function showCsvModal() {
+        const headers = "real_angle1,real_angle2,real_vel1,real_vel2,was_nudged,latent_var1,latent_var2,latent_var3,latent_var4";
+        const rows = fullDataHistory.map(d => [...d.real, ...d.latent].join(','));
+        csvTextArea.value = headers + "\n" + rows.join("\n");
+        csvModal.classList.remove('hidden');
+    }
+
+    async function analyzeWithAI() {
+        if (!lastCorrelationMatrix) {
+            geminiAnalysisDisplay.textContent = 'Please train the model for at least 5000 epochs to generate a correlation matrix first.';
+            return;
+        }
+
+        geminiAnalysisDisplay.textContent = '✨ Analyzing with Gemini...';
+        analyzeBtn.disabled = true;
+        explainBtn.classList.add('hidden');
+
+        const dataSample = fullDataHistory.slice(-500);
+        const headers = "real_angle1,real_angle2,real_vel1,real_vel2,was_nudged,latent_var1,latent_var2,latent_var3,latent_var4";
+        const csvRows = dataSample.map(d => [...d.real, ...d.latent].join(','));
+        const csvData = headers + "\n" + csvRows.join("\n");
+        const correlationMatrixString = lastCorrelationMatrix.map(row => row.map(val => val.toFixed(4)).join(', ')).join('\n');
+        
+        const prompt = `You are an AI assistant analyzing data from a physics experiment inspired by Instantaneous Noise-Based Logic. A neural network observed a double pendulum and learned a 4D latent space. Your task is to analyze this space. 
+1. Find a simple mathematical expression combining the four latent variables that remains nearly constant over time (a conserved quantity), ignoring timesteps where 'was_nudged' is 1. Look for something like 'c1*v1^2 + c2*v2^2 + ...'. 
+2. Analyze the provided correlation matrix of the latent variables. Does its near-diagonal structure (values close to 1 on the diagonal, close to 0 off-diagonal) suggest the AI successfully learned an efficient, 'orthogonal' basis for the pendulum's dynamics?
+
+If you find a conserved quantity, your response MUST begin with "Discovery:" followed by the formula, then discuss the correlation matrix. Otherwise, start with your analysis of the correlation matrix.
+
+Correlation Matrix:
+${correlationMatrixString}
+
+Time-series Data:
+${csvData}`;
+
+        try {
+            const userApiKey = apiKeyInput.value.trim();
+            const apiKey = userApiKey || ""; // Use user key if provided, otherwise empty for default
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+            
+            if (!response.ok) {
+                 const errorBody = await response.text();
+                 console.error("API Error Body:", errorBody);
+                 throw new Error(`API request failed with status ${response.status}`);
+            }
+
+            const result = await response.json();
+            if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
+                const text = result.candidates[0].content.parts[0].text;
+                geminiAnalysisDisplay.textContent = text;
+                if (text.toLowerCase().startsWith('discovery:')) {
+                    if(typeof Tone !== 'undefined' && synth) synth.triggerAttackRelease("E5", "8n", Tone.now());
+                    explainBtn.classList.remove('hidden');
+                }
+            } else {
+                 throw new Error("Invalid response structure from API.");
+            }
+        } catch (error) {
+            geminiAnalysisDisplay.textContent = `Error during analysis: ${error.message}. If you are getting an API key error, please provide a valid Gemini API key in the 'Gemini Settings' section.`;
+            console.error(error);
+        } finally {
+            analyzeBtn.disabled = false;
+        }
+    }
+
+    async function explainWithAI() {
+        const discoveryText = geminiAnalysisDisplay.textContent;
+        if (!discoveryText || !discoveryText.toLowerCase().startsWith('discovery:')) {
+            geminiAnalysisDisplay.innerHTML += "<br><br>No discovery to explain.";
+            return;
+        }
+
+        explainBtn.disabled = true;
+        explainBtn.textContent = '...';
+        
+        const prompt = `A neural network discovered that the quantity "${discoveryText}" is conserved while observing a double pendulum. In simple terms, what is the physical meaning or significance of this discovery? Does this correspond to a known law of physics like conservation of energy? Keep the explanation concise and easy to understand for a non-physicist.`;
+
+        try {
+            const userApiKey = apiKeyInput.value.trim();
+            const apiKey = userApiKey || ""; 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+            if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
+            const result = await response.json();
+             if (result.candidates && result.candidates.length > 0 && result.candidates[0].content && result.candidates[0].content.parts && result.candidates[0].content.parts.length > 0) {
+                const explanationText = result.candidates[0].content.parts[0].text;
+                geminiAnalysisDisplay.innerHTML += `<hr class="my-2 border-gray-600"><strong class="text-sky-400">Explanation:</strong> ${explanationText}`;
+            } else {
+                 throw new Error("Invalid response structure from API.");
+            }
+        } catch (error) {
+            geminiAnalysisDisplay.innerHTML += `<br><br><strong class="text-red-400">Error explaining discovery:</strong> ${error.message}`;
+            console.error(error);
+        } finally {
+            explainBtn.classList.add('hidden'); // Hide after explaining
+        }
+    }
+
+    trainBtn.addEventListener('click', () => {
+        if (!isTraining) {
+            if (typeof Tone !== 'undefined') { Tone.start(); }
+            setupSimulation(); 
+            isTraining = true;
+            trainBtn.textContent = "Training...";
+            analyzeBtn.disabled = true;
+        }
+    });
+    saveBtn.addEventListener('click', showCsvModal);
+    closeModalBtn.addEventListener('click', () => csvModal.classList.add('hidden'));
+    copyCsvBtn.addEventListener('click', () => {
+        csvTextArea.select();
+        document.execCommand('copy');
+    });
+    analyzeBtn.addEventListener('click', analyzeWithAI);
+    explainBtn.addEventListener('click', explainWithAI);
+    speedSlider.addEventListener('input', (e) => {
+        trainingSpeed = parseInt(e.target.value, 10);
+        speedValue.textContent = `${trainingSpeed}x`;
+    });
+    
+    setupSimulation();
+    gameLoop();
+}
+
+// --- ANALYSIS TAB SCRIPT ---
+function setupAnalysisTab() {
+    const plotButton = document.getElementById('plotButton');
+    const dataInput = document.getElementById('dataInput');
+
+    function parseData() {
+        let data;
+        if (typeof fullDataHistory !== 'undefined' && fullDataHistory.length > 0) {
+             data = fullDataHistory.map(item => ({
+                real_angle1: item.real[0],
+                real_angle2: item.real[1],
+                real_vel1: item.real[2],
+                real_vel2: item.real[3]
+             }));
+             const headers = "real_angle1,real_angle2,real_vel1,real_vel2,was_nudged,latent_var1,latent_var2,latent_var3,latent_var4";
+             const rows = fullDataHistory.map(d => [...d.real, ...d.latent].join(','));
+             dataInput.value = headers + "\n" + rows.join("\n");
+        } else {
+            const csvData = dataInput.value;
+            const lines = csvData.trim().split('\n'); 
+            const headers = lines[0].split(',').map(h => h.trim());
+            data = lines.slice(1).map(line => {
+                const values = line.split(',');
+                if (values.length < headers.length) return null;
+                const row = {};
+                headers.forEach((header, i) => {
+                    row[header] = parseFloat(values[i]);
+                });
+                return row;
+            }).filter(row => row !== null);
+        }
+        return data;
+    }
+
+    function plotCharts() {
+        const data = parseData();
+        if (!data || data.length === 0) {
+            console.error("No data to plot. Check the input format or run the simulation first.");
+            return;
+        }
+        const labels = data.map((_, i) => i);
+        const realAngle1 = data.map(d => d.real_angle1);
+        const realAngle2 = data.map(d => d.real_angle2);
+        const phaseData1 = data.map(d => ({ x: d.real_angle1, y: d.real_vel1 }));
+        const phaseData2 = data.map(d => ({ x: d.real_angle2, y: d.real_vel2 }));
+
+        if (timeSeriesChart) timeSeriesChart.destroy();
+        if (phasePortraitChart) phasePortraitChart.destroy();
+
+        const tsCtx = document.getElementById('timeSeriesChart').getContext('2d');
+        timeSeriesChart = new Chart(tsCtx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Angle 1 (radians)', data: realAngle1, borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1, pointRadius: 0, tension: 0.1 },
+                    { label: 'Angle 2 (radians)', data: realAngle2, borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 1, pointRadius: 0, tension: 0.1 }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { color: '#A0AEC0' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }, y: { ticks: { color: '#A0AEC0' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } } }, plugins: { legend: { labels: { color: '#E2E8F0' } } } }
+        });
+        const ppCtx = document.getElementById('phasePortraitChart').getContext('2d');
+        phasePortraitChart = new Chart(ppCtx, {
+            type: 'scatter',
+            data: {
+                datasets: [
+                    { label: 'Arm 1 (vel vs angle)', data: phaseData1, borderColor: 'rgba(54, 162, 235, 1)', backgroundColor: 'rgba(54, 162, 255, 0.5)', pointRadius: 1, showLine: true, borderWidth: 1 },
+                    { label: 'Arm 2 (vel vs angle)', data: phaseData2, borderColor: 'rgba(255, 99, 132, 1)', backgroundColor: 'rgba(255, 99, 132, 0.5)', pointRadius: 1, showLine: true, borderWidth: 1 }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { x: { type: 'linear', position: 'bottom', title: { display: true, text: 'Angle (radians)', color: '#CBD5E0' }, ticks: { color: '#A0AEC0' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }, y: { title: { display: true, text: 'Velocity (rad/s)', color: '#CBD5E0' }, ticks: { color: '#A0AEC0' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } } }, plugins: { legend: { labels: { color: '#E2E8F0' } } } }
+        });
+    }
+    plotButton.addEventListener('click', plotCharts);
+}
+
+// --- TAB NAVIGATION SCRIPT ---
+function setupTabs() {
+    const simTab = document.getElementById('simTab');
+    const analysisTab = document.getElementById('analysisTab');
+    const simView = document.getElementById('simulation-view');
+    const analysisView = document.getElementById('analysis-view');
+
+    simTab.addEventListener('click', () => {
+        simView.classList.remove('hidden');
+        analysisView.classList.add('hidden');
+        simTab.classList.add('active');
+        analysisTab.classList.remove('active');
+    });
+
+    analysisTab.addEventListener('click', () => {
+        analysisView.classList.remove('hidden');
+        simView.classList.add('hidden');
+        analysisTab.classList.add('active');
+        simTab.classList.remove('active');
+        document.getElementById('plotButton').click();
+    });
+}
+
+// Wait for the entire window to load before starting the script
+window.onload = () => {
+    main();
+    setupAnalysisTab();
+    setupTabs();
+};
+</script>
+
+</body>
+</html>
